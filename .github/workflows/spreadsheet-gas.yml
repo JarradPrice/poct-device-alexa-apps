@@ -17,6 +17,7 @@ on:
 # set working directory to spreadsheet-gas
 defaults:
   run:
+    shell: bash
     working-directory: ./spreadsheet-gas
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
