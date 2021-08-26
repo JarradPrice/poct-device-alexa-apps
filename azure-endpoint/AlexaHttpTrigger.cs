@@ -114,7 +114,7 @@ namespace JarradPrice.Function.Endpoint
             jsonObject["method"] = "GET";
             jsonObject["request-type"] = "INTENT";
             string intentName = st.Substring(6);
-            string deviceId = st.Substring(0, 5);
+            string deviceId = st.Substring(0, 5).ToLower();
             string requestQuery = "SELECT t.intent, t.response FROM c JOIN t IN c.intents WHERE c.id = '" + deviceId + "' AND t.intent = '" + intentName + "'";
             jsonObject["request-query"] = requestQuery;
             
@@ -134,7 +134,7 @@ namespace JarradPrice.Function.Endpoint
             catch(HttpRequestException e)
             {
                 log.LogInformation("\nException Caught!");	
-                log.LogInformation("Message :{0} ",e.Message);
+                log.LogInformation("Message: {0} ",e.Message);
                 return "internal error";
             }
         }
