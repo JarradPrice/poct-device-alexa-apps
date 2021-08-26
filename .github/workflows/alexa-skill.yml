@@ -2,10 +2,12 @@ name: ASK CLI Deployment - alexa-skill
 
 # Controls when the workflow will run
 on:
-  # Triggers the workflow on push request events but only for the main branch
+  # Triggers the workflow on push request events for the main or dev branch
   # also only triggers when the push event includes a file in the alexa-skill directory
   push:
-    branches: [ main ]
+    branches:
+        - master
+        - dev
     paths:
       - 'alexa-skill/**'
 
