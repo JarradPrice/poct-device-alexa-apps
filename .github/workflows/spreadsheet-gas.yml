@@ -14,12 +14,6 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# set working directory to spreadsheet-gas
-defaults:
-  run:
-    shell: bash
-    working-directory: ./spreadsheet-gas
-
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
@@ -42,4 +36,5 @@ jobs:
           clientId: ${{ secrets.GAS_CLIENT_ID }}
           clientSecret: ${{ secrets.GAS_CLIENT_SECRET }}
           scriptId: ${{ secrets.GAS_SCRIPT_ID }}
+          rootDir: 'spreadsheet-gas'
           command: 'push'
