@@ -1,4 +1,7 @@
-// global variables
+/*
+ * Global variables
+ * These are to be pulled from the CONFIG sheet
+*/
 
 // debug verbose
 const VERBOSE = false;
