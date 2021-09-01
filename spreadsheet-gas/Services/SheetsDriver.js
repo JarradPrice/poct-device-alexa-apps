@@ -1,5 +1,8 @@
-// Includes functions for exporting active sheet or all sheets as JSON object (also Python object syntax compatible).
-// Tweak the makePrettyJSON_ function to customize what kind of JSON to export.
+/*
+ * Functions to facilitate interaction with 
+ * the spreadsheet
+ */
+
 
 /**
  * showAlert
@@ -15,23 +18,6 @@ function showAlert(alert) {
     ui.ButtonSet.OK);
 }
 
-function exportSheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  //var sheet = ss.getActiveSheet();
-  var sheet = ss.getSheetByName("dbimport");
-  
-  if (sheet != null) {
-    var rowsData = getRowsData(sheet, getExportOptions());
-    var json = rowsData;//makeJSON_(rowsData, getExportOptions());
-
-    return json;
-    //displayText_(json);
-  }
-  else {
-    Logger.log("no dbimport");
-  }
-}
-
 /**
  * commitNewInteractionModel
  * Gets new interaction model JSON and commits to GitHub
@@ -39,11 +25,96 @@ function exportSheet() {
  */
 function commitNewInteractionModel() {
   getGlobals();
-  Logger.log(GitHub(GITHUB_CONFIG).SetBranch(GITHUB_CONFIG.branch));
-  let tree = GitHub(GITHUB_CONFIG).BuildTree("alexa-skill/skill-package/interactionModels/custom/en-AU.json", JSON.stringify(getQuestionsAlexaJson()));
-  Logger.log(tree);
-  let commitUrl = GitHub(GITHUB_CONFIG).Commit(tree, GITHUB_CONFIG.username, GITHUB_EMAIL);
-  Logger.log(commitUrl);
+
+  let allValid = checkQuestionCells();
+  if (allValid) {
+    Logger.log(GitHub(GITHUB_CONFIG).SetBranch(GITHUB_CONFIG.branch));
+    let tree = GitHub(GITHUB_CONFIG).BuildTree("alexa-skill/skill-package/interactionModels/custom/en-AU.json", JSON.stringify(getQuestionsAlexaJson()));
+    Logger.log(tree);
+    let commitUrl = GitHub(GITHUB_CONFIG).Commit(tree, GITHUB_CONFIG.username, GITHUB_EMAIL);
+    Logger.log(commitUrl);
+  }
+  else {
+    Logger.log("invalid Question cells found");
+    // alert user that cells are invalid
+    showAlert("ERROR: Invalid Question cells found.");
+  }
+}
+
+/**
+ * checkQuestionCells
+ * Checks all question cells if they are valid
+ *
+ * @returns {boolean} - Are all cells valid
+ */
+function checkQuestionCells() {
+  let cellsValid = true;
+  // get Questions sheet
+  // this sheet contains intent names and their questions
+  let sheet = SPREADSHEET.getSheetByName("Questions");
+
+  // if sheet not found
+  if (sheet != null) {
+    // get data range, start at row 9 and go for length of sheet
+    // +1 the max rows as to get last row with data correctly
+    let dataRange = sheet.getRange(9, 1, sheet.getLastRow()+1, 2);
+    // returns a two-dimensional array of values, indexed by row, then by column
+    let data = dataRange.getValues();
+
+    for (let i = 0; i < data.length; i++) {
+      // start of device
+      if (data[i][0] == "DEVICE NAME") {
+        continue;
+      }
+      // blank row
+      if (isCellEmpty(data[i][0]) && isCellEmpty(data[i][1])) {
+        continue;
+      }
+      // otherwise row with question
+      let validCell = isQuestionCellValid(data[i][1]);
+      if (!validCell) {
+        cellsValid = false;
+        // change colour to red
+        sheet.getRange(9+i, 2).setBackground("#e06666");
+      }
+      else {
+        sheet.getRange(9+i, 2).setBackground("#b6d7a8");
+      }
+    }
+  }
+  else {
+    Logger.log("no Questions sheet found");
+    // alert user that sheet is missing
+    showAlert("ERROR: Questions sheet not found.");
+    return false;
+  }
+
+  return cellsValid;
+}
+
+/**
+ * isQuestionCellValid
+ * Checks input against regex
+ *
+ * @param {string} cellData - Cell data as string
+ * @returns {boolean} - Is data empty
+ */
+function isQuestionCellValid(cellInput) {
+  // match special characters
+  let specialCharRegex = /^([a-z||A-Z||0-9|| ||.||_||'||\-||\{||\}])*$/;
+  // match white space
+  let whiteSpaceRegex = /^\s*$/;
+  // if only whitespace not valid
+  if (whiteSpaceRegex.test(cellInput)) {
+    return false;
+  }
+  // if only includes regex set
+  if(specialCharRegex.test(cellInput)) {
+      return true;
+  } 
+  else {
+      return false;
+  }
 }
 
 /**
@@ -57,89 +128,81 @@ function getQuestionsAlexaJson() {
   // this sheet contains intent names and their questions
   let sheet = SPREADSHEET.getSheetByName("Questions");
 
-  // if sheet not found
-  if (sheet != null) {
-    // get data range, start at row 9 and go for length of sheet
-    // +1 the max rows as to get last row with data correctly
-    let dataRange = sheet.getRange(9, 1, sheet.getLastRow()+1, 2);
-    // returns a two-dimensional array of values, indexed by row, then by column
-    let data = dataRange.getValues();
-    
-    let deviceObjects = [];
-    // current iteration device
-    let newDeviceName = "";
-    let newDeviceIntents = [];
-    for (let i = 0; i < data.length; i++) {
-      // the start of a device must always follow this format,
-      // first column = DEVICE NAME, second column = the actual name of the device
-      // e.g. data[i][0] = DEVICE NAME, data[i][1] = istat
-      if (data[i][0] == "DEVICE NAME") {
-        // start new device json
-        newDeviceName = data[i][1].toUpperCase();
-        newDeviceIntents = [];
-        i++;
-      }
+  // get data range, start at row 9 and go for length of sheet
+  // +1 the max rows as to get last row with data correctly
+  let dataRange = sheet.getRange(9, 1, sheet.getLastRow()+1, 2);
+  // returns a two-dimensional array of values, indexed by row, then by column
+  let data = dataRange.getValues();
+  
+  let deviceObjects = [];
+  // current iteration device
+  let newDeviceName = "";
+  let newDeviceIntents = [];
+  for (let i = 0; i < data.length; i++) {
+    // the start of a device must always follow this format,
+    // first column = DEVICE NAME, second column = the actual name of the device
+    // e.g. data[i][0] = DEVICE NAME, data[i][1] = istat
+    if (data[i][0] == "DEVICE NAME") {
+      // start new device json
+      newDeviceName = data[i][1].toUpperCase();
+      newDeviceIntents = [];
+      i++;
+    }
 
-      // if reached empty row, end of current device
-      if (isCellEmpty(data[i][0]) && isCellEmpty(data[i][1])) {
-        // if device not empty add
-        if (newDeviceIntents.length > 0) {
-          deviceObjects = deviceObjects.concat(newDeviceIntents);
-        }
-        newDeviceIntents = [];
+    // if reached empty row, end of current device
+    if (isCellEmpty(data[i][0]) && isCellEmpty(data[i][1])) {
+      // if device not empty add
+      if (newDeviceIntents.length > 0) {
+        deviceObjects = deviceObjects.concat(newDeviceIntents);
       }
-      else {
-        // otherwise add intents
-        // insert the intent name attribute
-        let intentName = newDeviceName + "_" + data[i][0].toUpperCase();
-        let questionSamples = [];
-        let newIntent = {}
-        newIntent['name'] = intentName;
-        // insert the first sample
+      newDeviceIntents = [];
+    }
+    else {
+      // otherwise add intents
+      // insert the intent name attribute
+      let intentName = newDeviceName + "_" + data[i][0].toUpperCase();
+      let questionSamples = [];
+      let newIntent = {}
+      newIntent['name'] = intentName;
+      // insert the first sample
+      questionSamples.push(data[i][1]);
+      i++;
+      // loop through all other samples
+      while(i != data.length && isCellEmpty(data[i][0]) && !isCellEmpty(data[i][1])) {
         questionSamples.push(data[i][1]);
         i++;
-        // loop through all other samples
-        while(i != data.length && isCellEmpty(data[i][0]) && !isCellEmpty(data[i][1])) {
-          questionSamples.push(data[i][1]);
-          i++;
-        }
-        newIntent['samples'] = questionSamples;
-        newDeviceIntents.push(newIntent);
-        // once finished with all samples for intent put index back to start of next row
-        i--;
+      }
+      newIntent['samples'] = questionSamples;
+      newDeviceIntents.push(newIntent);
+      // once finished with all samples for intent put index back to start of next row
+      i--;
+    }
+  }
+
+  // must include inbuilt amazon intent
+  let amazonIntent = {
+    "name": "AMAZON.StopIntent",
+    "samples": []
+  };
+  deviceObjects.push(amazonIntent);
+
+  let invocationName = INVOCATION_NAME;
+  let json = {
+    "interactionModel": {
+      "languageModel": {
+          "invocationName": invocationName,
+          "intents": deviceObjects,
+          "types": []
       }
     }
-
-    // must include inbuilt amazon intent
-    let amazonIntent = {
-      "name": "AMAZON.StopIntent",
-      "samples": []
-    };
-    deviceObjects.push(amazonIntent);
-
-    let invocationName = INVOCATION_NAME;
-    let json = {
-      "interactionModel": {
-        "languageModel": {
-            "invocationName": invocationName,
-            "intents": deviceObjects,
-            "types": []
-        }
-      }
-    }
-
-    displayJson = makeJson(json);
-
-    //Logger.log(displayJson);
-    displayText(displayJson);
-    
-    return(json);
   }
-  else {
-    Logger.log("no Questions sheet found");
-    // alert user that sheet is missing
-    showAlert("Questions sheet not found.");
-  }
+
+  displayJson = makeJson(json);
+
+  //Logger.log(displayJson);
+  displayText(displayJson);
+  
+  return(json);
 }
 
 /**
