@@ -43,6 +43,12 @@ namespace JarradPrice.Function.Services
             Status status = Status.OK;
             string response = String.Empty;
             List<HealthDevice> returnedDevices = new List<HealthDevice>();
+            // if no query passed, get all devices
+            if (string.IsNullOrEmpty(queryString))
+            {
+                queryString = "SELECT * from c";
+            }  
+
             try
             {
                 var query = _container.GetItemQueryIterator<HealthDevice>(new QueryDefinition(queryString));

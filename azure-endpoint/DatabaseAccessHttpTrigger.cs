@@ -8,10 +8,8 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Schema;
-using System.Collections.Generic;
-
 using Microsoft.Azure.Cosmos;
-using Microsoft.Azure.WebJobs.Extensions.CosmosDB;
+using System.Collections.Generic;
 
 using JarradPrice.Function.Models;
 using JarradPrice.Function.Services;
@@ -20,15 +18,6 @@ namespace JarradPrice.Function.DatabaseConnect
 {
     public static class DatabaseAccessHttpTrigger
     {
-        #region Variables
-        // Azure Cosmos DB endpoint
-        private static readonly string EndpointUri = "https://manual-knowledgebase.documents.azure.com:443/";
-        // primary key for the Azure Cosmos account
-        private static readonly string PrimaryKey = "Bu3EXdxzZKhwmhF9C5IYRBjJNZkMSS6VHtMUt10RQzPWV6QlAZm8Cpp1oK0eb04MyGWvnN3ayLPyf1qQNAb7Vw==";
-        private static readonly string databaseId = "my-database";
-        private static readonly string containerId = "my-container";
-        #endregion
-
         #region Trigger entry point
         [FunctionName("DatabaseAccessHttpTrigger")]
         public static async Task<IActionResult> Run(
@@ -116,10 +105,10 @@ namespace JarradPrice.Function.DatabaseConnect
         #region Cosmos initialisation
         private static async Task<CosmosDbService> InitialiseCosmosClientInstanceAsync()
         {
-            var databaseName = databaseId;
-            var containerName = containerId;
-            var account = EndpointUri;
-            var key = PrimaryKey;
+            var databaseName = GetEnvironmentVariable("COSMOS_DATABASE_ID");
+            var containerName = GetEnvironmentVariable("COSMOS_CONTAINER_ID");
+            var account = GetEnvironmentVariable("COSMOS_URI");
+            var key = GetEnvironmentVariable("COSMOS_PRIMARY_KEY");
 
             var client = new CosmosClient(account, key);
             var database = await client.CreateDatabaseIfNotExistsAsync(databaseName);
@@ -127,6 +116,11 @@ namespace JarradPrice.Function.DatabaseConnect
 
             var cosmosDbService = new CosmosDbService(client, databaseName, containerName);
             return cosmosDbService;
+        }
+
+        public static string GetEnvironmentVariable(string name)
+        {
+            return System.Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
         }
         #endregion
 

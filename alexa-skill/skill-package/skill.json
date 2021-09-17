@@ -5,9 +5,8 @@
         "en-AU": {
           "summary": "Sample Short Description",
           "examplePhrases": [
-            "Alexa open hello world",
-            "hello",
-            "help"
+            "Alexa open point of care device manual",
+            "point of care device manual"
           ],
           "keywords": [],
           "name": "Health App Prototype",

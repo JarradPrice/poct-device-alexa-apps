@@ -179,9 +179,14 @@ function getQuestionsAlexaJson() {
     }
   }
 
-  // must include inbuilt amazon intent
+  // must include inbuilt amazon intents
   let amazonIntent = {
     "name": "AMAZON.StopIntent",
+    "samples": []
+  };
+  deviceObjects.push(amazonIntent);
+  amazonIntent = {
+    "name": "AMAZON.AMAZON.FallbackIntent",
     "samples": []
   };
   deviceObjects.push(amazonIntent);

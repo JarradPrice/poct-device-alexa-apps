@@ -52,11 +52,11 @@ function buildIntentsTable(inputJson, selector) {
         // get intent
         var cellValue = inputJson[i]["intent"];
         // add cell with value
-        row$.append($('<td contenteditable="true"/>').html(cellValue));
+        row$.append($('<td contenteditable="true" class="left-td"/>').html(cellValue));
         // get response
         var cellValue = inputJson[i]["response"];
         // add cell with value
-        row$.append($('<td contenteditable="true"/>').html(cellValue));
+        row$.append($('<td contenteditable="true" class="right-td"/>').html(cellValue));
         // add row
         $target.append(row$);
     }
@@ -123,31 +123,73 @@ function checkTable(selector) {
     let $table = $(selector)[0];
     // get every table row
     let tr = $table.getElementsByTagName('tr')
-    // are all cells valid
-    let allValid = true;
-    // for each row
-    for (let i = 0; i < tr.length; i++) {
+    // is there an invalid intent or response cells
+    let invalidIntent = false;
+    let invalidResponse = false;
+    // for each row, skip header row
+    for (let i = 1; i < tr.length; i++) {
         // get cells in the row
         let cells = tr[i].getElementsByTagName('td');
+        // first check if row is to be deleted
+        // if all cells empty delete row
+        let deleteCell = true;
+        // match white space
+        let whiteSpaceRegex = /^\s*$/;
+        for (let cell = 0, len = cells.length; cell < len; cell++) {
+            if(!whiteSpaceRegex.test(cells[cell].innerHTML)) {
+                deleteCell = false;
+            } 
+        }
+        if (deleteCell) {
+            $table.deleteRow(i);
+            // re run checkTable with table loop 
+            checkTable(selector);
+            return;
+        }
         // for each cell
         for (let cell = 0, len = cells.length; cell < len; cell++) {
-            // if invalid input
-            if (!isValid(cells[cell].innerHTML)) {
-                // make cell red
-                cells[cell].style.backgroundColor = 'lightcoral';
-                // all cells are not valid
-                allValid = false;
+            // validate intent cell
+            if (cell == 0) {
+                // if invalid input
+                if (!isIntentValid(cells[cell].innerHTML)) {
+                    // make cell red
+                    cells[cell].style.backgroundColor = 'lightcoral';
+                    // invalid intent cell
+                    invalidIntent = true;
+                }
+                else {
+                    // make cell white
+                    cells[cell].style.backgroundColor = 'white';
+                }
             }
-            else {
-                // make cell white
-                cells[cell].style.backgroundColor = 'white';
+            
+            // validate response cell
+            if (cell == 1) {
+                // if invalid input
+                if (!isResponseValid(cells[cell].innerHTML)) {
+                    // make cell red
+                    cells[cell].style.backgroundColor = 'lightcoral';
+                    // invalid response cell
+                    invalidResponse = true;
+                }
+                else {
+                    // make cell white
+                    cells[cell].style.backgroundColor = 'white';
+                }
             }
         }
     }
     // if any cell is not valid display warning
-    if(!allValid) {
+    if(invalidIntent || invalidResponse) {
+        let errorString = "";
+        if (invalidIntent) {
+            errorString += "Invalid intent cell/s, only uppercase characters separated by underscores allowed.<br>"
+        }
+        if (invalidResponse) {
+            errorString += "\nInvalid response cell/s, no special characters or blank cells allowed."
+        }
         let errorDiv = document.getElementById('warning');
-        errorDiv.innerHTML = "Invalid input, no special characters or blank cells allowed.";
+        errorDiv.innerHTML = errorString;
     }
     else {
         let errorDiv = document.getElementById('warning');
@@ -156,13 +198,30 @@ function checkTable(selector) {
 }
 
 /**
- * isValid
+ * isIntentValid
  * Checks input against regex
  *
  * @param {string} cellInput - The innerHTML of a cell
  * @returns {boolean} - True if valid, false if not
  */
-function isValid(cellInput) {
+function isIntentValid(cellInput) {
+    // match only uppercase seperated by underscore
+    let intentRegex = /^([A-Z]+(_?[A-Z])*)$/;
+    if(intentRegex.test(cellInput)) {
+        return true;
+    } 
+    else {
+        return false;
+    }
+}
+/**
+ * isResponseValid
+ * Checks input against regex
+ *
+ * @param {string} cellInput - The innerHTML of a cell
+ * @returns {boolean} - True if valid, false if not
+ */
+function isResponseValid(cellInput) {
     // match special characters
     let specialCharRegex = /[!@#$%^&*()+\-=\[\]{};':"\\|<>\/?\n\t\r]+/;
     // match white space

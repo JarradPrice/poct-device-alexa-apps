@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Microsoft.Azure.Cosmos;
 
 using Alexa.NET;
 using Alexa.NET.Response;
@@ -16,11 +17,69 @@ using Alexa.NET.Request;
 using System.Net.Http;
 using System.Text;
 
+using JarradPrice.Function.Models;
+using JarradPrice.Function.Services;
+using System.Collections.Generic;
+using System.Linq;
+
 namespace JarradPrice.Function.Endpoint
 {
     public static class AlexaHttpTrigger
     {
-        [FunctionName("Alexa")]
+        #region Cosmos initialisation
+        private static async Task<CosmosDbService> InitialiseCosmosClientInstanceAsync()
+        {
+            var databaseName = GetEnvironmentVariable("COSMOS_DATABASE_ID");
+            var containerName = GetEnvironmentVariable("COSMOS_CONTAINER_ID");
+            var account = GetEnvironmentVariable("COSMOS_URI");
+            var key = GetEnvironmentVariable("COSMOS_PRIMARY_KEY");
+
+            var client = new CosmosClient(account, key);
+            var database = await client.CreateDatabaseIfNotExistsAsync(databaseName);
+            await database.Database.CreateContainerIfNotExistsAsync(containerName, "/id");
+
+            var cosmosDbService = new CosmosDbService(client, databaseName, containerName);
+            return cosmosDbService;
+        }
+
+        public static string GetEnvironmentVariable(string name)
+        {
+            return System.Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
+        }
+
+        public static async Task<string> GetDatabaseIntents(ILogger log)
+        {
+            // initialise cosmos instance
+            CosmosDbService _cosmosDbService = await InitialiseCosmosClientInstanceAsync();
+            // call CosmosDbService class
+            DbServiceResponse result = await _cosmosDbService.GetHealthDevicesAsync("");
+
+            if (result.Status == Status.OK)
+            {
+                log.LogInformation("success running cosmos query");
+                List<HealthDevice> healthDevices = (List<HealthDevice>)result.HealthDevicePayload;
+                if (healthDevices.Count == 0)
+                {
+                    log.LogInformation("error no health devices were returned");
+                    return "ER";
+                }
+                else
+                {
+                    var json = JsonConvert.SerializeObject(healthDevices);
+                    return json;
+                }
+            }
+            else if (result.Status == Status.ER)
+            {
+                log.LogInformation("error, response: " + result.Response);
+                return "ER";
+            }
+            // should never reach this return statement
+            return "ER";
+        }
+        #endregion
+
+        [FunctionName("AlexaHttpTrigger")]
         public static async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
             ILogger log)
@@ -38,6 +97,10 @@ namespace JarradPrice.Function.Endpoint
                 log.LogInformation("dropped request, invalid applicationId");
                 return new BadRequestResult();
             }
+
+            // immediatly get database json to decrease response time
+            Task<string> databaseTask = GetDatabaseIntents(log);
+
             // convert json to Alexa.NET SkillRequest object
             SkillRequest skillRequest = JsonConvert.DeserializeObject<SkillRequest>(json);
             // get the request type
@@ -64,16 +127,19 @@ namespace JarradPrice.Function.Endpoint
                 switch (intentRequest.Intent.Name)
                 {
                     case "AMAZON.CancelIntent":
+                        response = await GetEndSessionResponse(intentRequest, log);
                         break;
                     case "AMAZON.StopIntent":
+                        response = await GetEndSessionResponse(intentRequest, log);
+                        break;
+                    case "AMAZON.FallbackIntent":
+
                         break;
                     default:
                     {
-                        response = await ParseQuery(intentRequest, log);
-                        //log.LogLine($"Unknown intent: " + intentRequest.Intent.Name);
-                        //string speech = "I didn't understand - try again?";
-                        //Reprompt rp = new Reprompt(speech);
-                        //return ResponseBuilder.Ask(speech, rp, session);
+                        // wait for database json to be returned before continuing
+                        string dbJsonString = await databaseTask;
+                        response = await ParseQuery(dbJsonString, intentRequest, log);
                         break;
                     }
                 }
@@ -91,52 +157,80 @@ namespace JarradPrice.Function.Endpoint
             }
         }
 
-        public static async Task<SkillResponse> ParseQuery(IntentRequest iR, ILogger log)
+         public static async Task<SkillResponse> ParseQuery(String dbJsonString, IntentRequest intentRequest, ILogger log)
         {
             SkillResponse response = null;
-            log.LogInformation("intent to retieve " + iR.Intent.Name);
+            string intentRequestFullName = intentRequest.Intent.Name;
+            log.LogInformation("intent to retrieve " + intentRequestFullName);
 
-            string result = await RetrieveResponse(iR.Intent.Name, log);
+            string intentName = intentRequestFullName.Substring(6);
+            string deviceId = intentRequestFullName.Substring(0, 5).ToLower();
+            string responseSpeach = String.Empty;
+            // parse database json into array of json, each health device is a child
+            try
+            {
+                JArray devicesJsonArray = JArray.Parse(dbJsonString);
+                // retrieve device intents
+                var deviceJsonObject = devicesJsonArray.Children<JObject>().FirstOrDefault(x => x["id"] != null && x["id"].ToString().Equals(deviceId, StringComparison.OrdinalIgnoreCase));
+                if (deviceJsonObject != null)
+                {
+                    // get the wanted device intent
+                    var foundResponse = deviceJsonObject.SelectToken($"$.intents[?(@.intent == '{intentName}')]");
+                    if (foundResponse != null)
+                    {
+                        responseSpeach = foundResponse["response"].Value<string>();
+                        log.LogInformation($"found response: \n {responseSpeach}");
+                    }
+                    else
+                    {
+                        // bad request intent not found
+                        log.LogInformation($"{intentName} intent not found");
+                        return null;
+                    }
+                }
+                else
+                {
+                    // bad request device not found
+                    log.LogInformation($"{deviceId} device not found");
+                    return null;
+                }
+                
+                response = ResponseBuilder.Tell(responseSpeach);
+                response.Response.ShouldEndSession = false;
 
-            response = ResponseBuilder.Tell(result);
-            response.Response.ShouldEndSession = false;
+                return response;
+            }
+            catch (Exception exc)
+            {
+                log.LogInformation($"failed to parse database json: \n {exc}");
+                return null;
+            }
+        }
+
+        public static async Task<SkillResponse> GetEndSessionResponse(IntentRequest intentRequest, ILogger log)
+        {
+            SkillResponse response = null;
+            log.LogInformation("ending session from request" + intentRequest.Intent.Name);
+
+            string responseSpeach = "Goodbye!";
+
+            response = ResponseBuilder.Tell(responseSpeach);
+            response.Response.ShouldEndSession = true;
 
             return response;
         }
 
-        static readonly HttpClient client = new HttpClient();
-        public static async Task<string> RetrieveResponse(string st, ILogger log)
+        public static async Task<SkillResponse> GetFallbackResponse(IntentRequest intentRequest, ILogger log)
         {
-            string RemoteUrl = "https://seng4211-alexa-endpoint.azurewebsites.net/api/DatabaseAccessHttpTrigger?code=RlUlUu6QhAQ/1ieqak8y44JKompZhWAULOKagMiRlcUFGNjTxcRLeA==";
+            SkillResponse response = null;
+            log.LogInformation("fallback from request" + intentRequest.Intent.Name);
 
-            var jsonObject = new JObject();
-            jsonObject["source"] = "AlexaHttpTrigger";
-            jsonObject["method"] = "GET";
-            jsonObject["request-type"] = "INTENT";
-            string intentName = st.Substring(6);
-            string deviceId = st.Substring(0, 5).ToLower();
-            string requestQuery = "SELECT t.intent, t.response FROM c JOIN t IN c.intents WHERE c.id = '" + deviceId + "' AND t.intent = '" + intentName + "'";
-            jsonObject["request-query"] = requestQuery;
-            
-            try	
-            {
-                var content = new StringContent(jsonObject.ToString(), Encoding.UTF8, "application/json");
-                HttpResponseMessage response = await client.PostAsync(RemoteUrl, content);
-                response.EnsureSuccessStatusCode();
-                string responseBody = await response.Content.ReadAsStringAsync();
-                // Above three lines can be replaced with new helper method below
-                // string responseBody = await client.GetStringAsync(uri);
-                log.LogInformation(responseBody);
+            string responseSpeach = "Sorry I can't help with that at this time!";
 
-                var returnedJson = JObject.Parse(responseBody);
-                return returnedJson["response"].ToString();
-            }
-            catch(HttpRequestException e)
-            {
-                log.LogInformation("\nException Caught!");	
-                log.LogInformation("Message: {0} ",e.Message);
-                return "internal error";
-            }
+            response = ResponseBuilder.Tell(responseSpeach);
+            response.Response.ShouldEndSession = false;
+
+            return response;
         }
     }
 }
