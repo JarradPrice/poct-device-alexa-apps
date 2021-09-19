@@ -3,7 +3,6 @@
  * the spreadsheet
  */
 
-
 /**
  * showAlert
  * Pre-built dialog box
@@ -26,7 +25,7 @@ function showAlert(alert) {
 function commitNewInteractionModel() {
   getGlobals();
 
-  let allValid = checkQuestionCells();
+  let allValid = isQuestionSheetValid();
   if (allValid) {
     Logger.log(GitHub(GITHUB_CONFIG).SetBranch(GITHUB_CONFIG.branch));
     let tree = GitHub(GITHUB_CONFIG).BuildTree("alexa-skill/skill-package/interactionModels/custom/en-AU.json", JSON.stringify(getQuestionsAlexaJson()));
@@ -48,24 +47,20 @@ function commitNewInteractionModel() {
  * @returns {array} - Array of string device names
  */
 function getDevices() {
-  // first check that the sheet has valid formatting
-  if (!checkQuestionCells) {
-    return;
-  }
   let sheet = SPREADSHEET.getSheetByName("Questions");
   let deviceNames = [];
   // if sheet not found
   if (sheet != null) {
-    // get data range, start at row 9 and go for length of sheet
+    // get data range, start at row QT_START and go for length of sheet
     // +1 the max rows as to get last row with data correctly
-    let dataRange = sheet.getRange(9, 1, sheet.getLastRow()+1, 2);
+    let dataRange = sheet.getRange(QT_START, 1, sheet.getLastRow()+1, 2);
     // returns a two-dimensional array of values, indexed by row, then by column
     let data = dataRange.getValues();
 
     for (let i = 0; i < data.length; i++) {
       // start of device
       if (data[i][0] == "DEVICE NAME") {
-        deviceNames.push(data[i][1]);
+        deviceNames.push(data[i][1].toLowerCase());
       }
     }
   }
@@ -73,43 +68,53 @@ function getDevices() {
 }
 
 /**
- * checkQuestionCells
- * Checks all question cells if they are valid
+ * isQuestionSheetValid
+ * Checks all Question sheet cells if they are all valid
  *
  * @returns {boolean} - Are all cells valid
  */
-function checkQuestionCells() {
+function isQuestionSheetValid() {
+  // remove empty question cells
+  checkForEmptyQuestionCells();
+
   let cellsValid = true;
+  // check intent names
+  cellsValid = checkIntentNames();
   // get Questions sheet
   // this sheet contains intent names and their questions
   let sheet = SPREADSHEET.getSheetByName("Questions");
 
   // if sheet not found
   if (sheet != null) {
-    // get data range, start at row 9 and go for length of sheet
+    // get data range, start at row QT_START and go for length of sheet
     // +1 the max rows as to get last row with data correctly
-    let dataRange = sheet.getRange(9, 1, sheet.getLastRow()+1, 2);
+    let dataRange = sheet.getRange(QT_START, 1, sheet.getLastRow()+1, 2);
     // returns a two-dimensional array of values, indexed by row, then by column
     let data = dataRange.getValues();
 
     for (let i = 0; i < data.length; i++) {
+      let validCell = true;
       // start of device
       if (data[i][0] == "DEVICE NAME") {
-        continue;
+        validCell = isDeviceNameValid(data[i][1]);
       }
       // blank row
-      if (isCellEmpty(data[i][0]) && isCellEmpty(data[i][1])) {
+      else if (isCellEmpty(data[i][0]) && isCellEmpty(data[i][1])) {
         continue;
       }
-      // otherwise row with question
-      let validCell = isQuestionCellValid(data[i][1]);
+      else {
+        // left cell empty or not, right not empty 
+        // row with question
+        validCell = isQuestionCellValid(data[i][1]);
+      }
+      
       if (!validCell) {
         cellsValid = false;
         // change colour to red
-        sheet.getRange(9+i, 2).setBackground("#e06666");
+        sheet.getRange(QT_START+i, 2).setBackground("#e06666");
       }
       else {
-        sheet.getRange(9+i, 2).setBackground("#b6d7a8");
+        sheet.getRange(QT_START+i, 2).setBackground("#b6d7a8");
       }
     }
   }
@@ -119,8 +124,150 @@ function checkQuestionCells() {
     showAlert("ERROR: Questions sheet not found.");
     return false;
   }
-
   return cellsValid;
+}
+
+/**
+ * checkForEmptyQuestionCells
+ * Checks if there are any question cells with nothing in them
+ * if so, deletes that row
+ *
+ */
+function checkForEmptyQuestionCells() {
+  let sheet = SPREADSHEET.getSheetByName("Questions");
+
+  if (sheet != null) {
+    let dataRange = sheet.getRange(QT_START, 1, sheet.getLastRow()+1, 2);
+    let data = dataRange.getValues();
+
+    let devicesAmount = getDevices().length;
+
+    //let deviceStarted = false;
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][0] == "DEVICE NAME") {
+        continue;
+      }
+      // have to check if blank row in question group
+      // if blank row
+      if (isCellEmpty(data[i][0]) && isCellEmpty(data[i][1])) {
+        let deleteRow = false;
+        // if end of data skip
+        if(i+1 >= data.length) {
+          continue;
+        }
+        // if immediate next row new device don't delete
+        if (data[i+1][0] != "DEVICE NAME") {
+          // check next rows
+          for(let x = i; x < data.length; x++) {
+            // if filled cells after
+            if (!isCellEmpty(data[x][0]) || !isCellEmpty(data[x][1])) {
+              // if row with data after empty row delete row
+              deleteRow = true;
+            }
+          }
+        }
+        if (deleteRow) {
+          sheet.deleteRow(i+QT_START);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * checkIntentNames
+ * Checks all Question sheet intent cells if they are valid
+ *
+ * @returns {boolean} - Are all cells valid
+ */
+function checkIntentNames() {
+  let cellsValid = true;
+  // get Questions sheet
+  // this sheet contains intent names and their questions
+  let sheet = SPREADSHEET.getSheetByName("Questions");
+
+  // if sheet not found
+  if (sheet != null) {
+    // get data range, start at row QT_START and go for length of sheet
+    // +1 the max rows as to get last row with data correctly
+    let dataRange = sheet.getRange(QT_START, 1, sheet.getLastRow()+1, 2);
+    // returns a two-dimensional array of values, indexed by row, then by column
+    let data = dataRange.getValues();
+
+    let intentNames = [];
+    for (let i = 0; i < data.length; i++) {
+      let validCell = true;
+      // start of device, skip
+      if (data[i][0] == "DEVICE NAME") {
+        continue;
+      }
+      // if blank cell, skip
+      if (isCellEmpty(data[i][0])) {
+        continue;
+      }
+      let intentName = data[i][0];
+      // otherwise considered cell with intent name
+      // first check if valid formatting
+      if (!isIntentValid(intentName)) {
+        validCell = false;
+      }
+      // else check if already in array
+      // if so, invalid
+      else if (intentNames.includes(intentName)) {
+        validCell = false;
+      }
+      else {
+        intentNames.push(intentName)
+      }
+
+      if (!validCell) {
+        cellsValid = false;
+        // change colour to red
+        sheet.getRange(QT_START+i, 1).setBackground("#e06666");
+      }
+      else {
+        sheet.getRange(QT_START+i, 1).setBackground("#ffffff");
+      }
+    }
+  }
+  return cellsValid;
+}
+
+/**
+ * isDeviceNameValid
+ * Checks input against regex
+ *
+ * @param {string} cellData - Cell data as string
+ * @returns {boolean} - Is cell valid
+ */
+function isDeviceNameValid(cellInput) {
+  // device name is only valid if it is five characters and
+  // only consists of letters
+  let deviceNameRegex = /^([A-Z]|[a-z]){5}$/;
+  if (deviceNameRegex.test(cellInput)) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+/**
+ * isIntentValid
+ * Checks input against regex
+ *
+ * @param {string} cellInput - The innerHTML of a cell
+ * @returns {boolean} - True if valid, false if not
+ */
+function isIntentValid(cellInput) {
+  // match only uppercase seperated by underscore
+  let intentRegex = /^([A-Z]+(_?[A-Z])*)$/;
+  if(intentRegex.test(cellInput)) {
+      return true;
+  } 
+  else {
+      return false;
+  }
 }
 
 /**
@@ -128,11 +275,11 @@ function checkQuestionCells() {
  * Checks input against regex
  *
  * @param {string} cellData - Cell data as string
- * @returns {boolean} - Is data empty
+ * @returns {boolean} - Is cell valid
  */
 function isQuestionCellValid(cellInput) {
   // match special characters
-  let specialCharRegex = /^([a-z||A-Z||0-9|| ||.||_||'||\-||\{||\}])*$/;
+  let specialCharRegex = /^([a-z||A-Z|| ||.||_||'||\-||\{||\}])*$/;
   // match white space
   let whiteSpaceRegex = /^\s*$/;
   // if only whitespace not valid
@@ -159,9 +306,9 @@ function getQuestionsAlexaJson() {
   // this sheet contains intent names and their questions
   let sheet = SPREADSHEET.getSheetByName("Questions");
 
-  // get data range, start at row 9 and go for length of sheet
+  // get data range, start at row QT_START and go for length of sheet
   // +1 the max rows as to get last row with data correctly
-  let dataRange = sheet.getRange(9, 1, sheet.getLastRow()+1, 2);
+  let dataRange = sheet.getRange(QT_START, 1, sheet.getLastRow()+1, 2);
   // returns a two-dimensional array of values, indexed by row, then by column
   let data = dataRange.getValues();
   
@@ -217,7 +364,7 @@ function getQuestionsAlexaJson() {
   };
   deviceObjects.push(amazonIntent);
   amazonIntent = {
-    "name": "AMAZON.AMAZON.FallbackIntent",
+    "name": "AMAZON.FallbackIntent",
     "samples": []
   };
   deviceObjects.push(amazonIntent);
@@ -234,8 +381,6 @@ function getQuestionsAlexaJson() {
   }
 
   displayJson = makeJson(json);
-
-  //Logger.log(displayJson);
   displayText(displayJson);
   
   return(json);

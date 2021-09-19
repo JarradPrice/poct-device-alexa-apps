@@ -17,13 +17,21 @@
     devices.forEach(name => {
       // get device intents from api
       let deviceIntents = databaseGet(name);
-      if (deviceIntents == "bad request") {
-        // create device object with empty intents
-        let deviceObject = {
-          "name": name,
-          "intents": [{"intent" : "!insert intent!", "response" : "!insert response!"}]
-        };
-        returnedDevices.push(deviceObject);
+      // if bad api request
+      if (deviceIntents.hasOwnProperty("badRequest")) {
+        if (deviceIntents["badRequest"] === "Resource not found") {
+          // could be a newly added device
+          // create device object with empty intents
+          let deviceObject = {
+            "name": name,
+            "intents": [{"intent" : "!insert intent!", "response" : "!insert response!"}]
+          };
+          returnedDevices.push(deviceObject);
+        }
+        else {
+          // error not expected, throw error
+          throw "Bad request. Error message:\n" + deviceIntents["badRequest"];
+        }
       }
       else {
         // create device object
@@ -80,8 +88,11 @@ function databaseGet(deviceId) {
     return data["intents"];
   }
   else {
-    Logger.log("bad request");
-    return "bad request";
+    if (VERBOSE) Logger.log("bad request:\n" + response.getContentText());
+    let badRequestObject = {
+      "badRequest" : response.getContentText()
+    };
+    return badRequestObject;
   }
 }
 
@@ -92,6 +103,7 @@ function databaseGet(deviceId) {
  *
  * @param {string} inputJsonString - Json data for the device
  * @param {string} deviceId - The name of the device to upsert
+ * @returns {object} - Success state of response
  */
 function databasePut(inputJsonString, deviceId) {
   getGlobals();
@@ -119,8 +131,22 @@ function databasePut(inputJsonString, deviceId) {
   if (VERBOSE) Logger.log("url output:\n" + JSON.stringify(options));
 
   let response = UrlFetchApp.fetch(requestUrl, options);
-  let data = JSON.parse(response.getContentText());
-  if (VERBOSE) Logger.log("response:\n" + makeJSON_(data, getExportOptions()))
+  if (VERBOSE) Logger.log("response code: " + response.getResponseCode());
+  // check to ensure OK request
+  if (response.getResponseCode() == 200) {
+    let data = JSON.parse(response.getContentText());
+    if (VERBOSE) Logger.log("response:\n" + makeJSON_(data, getExportOptions()))
 
-  //return makeJSON_(data, getExportOptions());
+    let okRequestObject = {
+      "okRequest" : "Successfully pushed to database."
+    }
+    return okRequestObject;
+  }
+  else {
+    if (VERBOSE) Logger.log("bad request:\n" + response.getContentText());
+    let badRequestObject = {
+      "badRequest" : response.getContentText()
+    };
+    return badRequestObject;
+  }
 }

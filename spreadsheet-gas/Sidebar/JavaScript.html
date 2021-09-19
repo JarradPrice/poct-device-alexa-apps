@@ -1,5 +1,9 @@
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
 <script>
+// failure handler to display error to user
+function onFailure(error) {
+  google.script.run.showAlert(error.message);
+}
 // initialisation function to run build table function
 function onDbGetResponseRecieved(inputJson) {
   if(inputJson.length == 0) {
@@ -19,7 +23,7 @@ function onDbGetResponseRecieved(inputJson) {
   $("#" + inputJson[0]["name"]).show();
 }
 // call connection driver get function
-google.script.run.withSuccessHandler(onDbGetResponseRecieved).getAllDatabaseDevices();
+google.script.run.withSuccessHandler(onDbGetResponseRecieved).withFailureHandler(onFailure).getAllDatabaseDevices();
 
 /**
  * openTab
@@ -312,8 +316,11 @@ function exportTable(selector) {
 }
 
 function onDbPutResponseRecieved(putResponse) {
-  // TODO display if database put was a success
-  //let div = document.getElementById('output');
-  //div.innerHTML = putResponse;
+  if (putResponse.hasOwnProperty("badRequest")) {
+    google.script.run.showAlert(putResponse["badRequest"]);
+  }
+  else {
+    google.script.run.showAlert(putResponse["okRequest"]);
+  }
 }
 </script>

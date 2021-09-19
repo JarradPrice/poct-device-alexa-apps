@@ -16,3 +16,6 @@ let API_KEY;
 // github client variables
 let GITHUB_CONFIG;
 let GITHUB_EMAIL;
+
+// starting row of devices in Question sheet
+const QT_START = 12;
