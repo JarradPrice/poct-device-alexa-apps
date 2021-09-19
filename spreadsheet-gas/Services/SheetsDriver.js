@@ -42,6 +42,37 @@ function commitNewInteractionModel() {
 }
 
 /**
+ * getDevices
+ * Returns array of device names from Questions sheet
+ *
+ * @returns {array} - Array of string device names
+ */
+function getDevices() {
+  // first check that the sheet has valid formatting
+  if (!checkQuestionCells) {
+    return;
+  }
+  let sheet = SPREADSHEET.getSheetByName("Questions");
+  let deviceNames = [];
+  // if sheet not found
+  if (sheet != null) {
+    // get data range, start at row 9 and go for length of sheet
+    // +1 the max rows as to get last row with data correctly
+    let dataRange = sheet.getRange(9, 1, sheet.getLastRow()+1, 2);
+    // returns a two-dimensional array of values, indexed by row, then by column
+    let data = dataRange.getValues();
+
+    for (let i = 0; i < data.length; i++) {
+      // start of device
+      if (data[i][0] == "DEVICE NAME") {
+        deviceNames.push(data[i][1]);
+      }
+    }
+  }
+  return deviceNames;
+}
+
+/**
  * checkQuestionCells
  * Checks all question cells if they are valid
  *
@@ -214,7 +245,7 @@ function getQuestionsAlexaJson() {
  * makeJSON
  * Turns the passed object into a JSON string
  *
- * @param {object} object - The jsoon object to be turned into a string
+ * @param {object} object - The json object to be turned into a string
  * @returns {string} - JSON string
  */
 function makeJson(object) {

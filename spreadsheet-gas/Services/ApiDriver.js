@@ -4,13 +4,49 @@
  */
 
 /**
+ * getAllDatabaseDevices
+ * Gets intents for each device
+ *
+ * @returns {object} - Array of device objects
+ */
+ function getAllDatabaseDevices() {
+  // get all device names
+  let devices = getDevices();
+  let returnedDevices = [];
+  if (devices.length != 0) {
+    devices.forEach(name => {
+      // get device intents from api
+      let deviceIntents = databaseGet(name);
+      if (deviceIntents == "bad request") {
+        // create device object with empty intents
+        let deviceObject = {
+          "name": name,
+          "intents": [{"intent" : "!insert intent!", "response" : "!insert response!"}]
+        };
+        returnedDevices.push(deviceObject);
+      }
+      else {
+        // create device object
+        let deviceObject = {
+          "name": name,
+          "intents": deviceIntents
+        };
+        returnedDevices.push(deviceObject);
+      }
+    });
+  }
+  return returnedDevices;
+}
+
+/**
  * databaseGet
  * Does a GET request to the API
- * Requests the istat device
+ * Requests the passed deviceId
  *
+ * @param {string} deviceId - Id of health device to retrieve
  * @returns {object} - Intents component of response json 
  */
-function databaseGet() {
+function databaseGet(deviceId) {
   getGlobals();
   if (VERBOSE) Logger.log("starting api get request");
   // construct request url
@@ -25,7 +61,7 @@ function databaseGet() {
     "source": "Google App Script",
     "method": "GET",
     "request-type": "DEVICE",
-    "request-query": "istat"
+    "request-query": deviceId
   }
   let options = {
     "contentType" : "application/json",
@@ -35,10 +71,18 @@ function databaseGet() {
   if (VERBOSE) Logger.log("url output:\n" + JSON.stringify(options));
 
   let response = UrlFetchApp.fetch(requestUrl, options);
-  let data = JSON.parse(response.getContentText());
-  if (VERBOSE) Logger.log("response:\n" + makeJSON_(data, getExportOptions()))
+  if (VERBOSE) Logger.log("response code: " + response.getResponseCode());
+  // check to ensure OK request
+  if (response.getResponseCode() == 200) {
+    let data = JSON.parse(response.getContentText());
+    if (VERBOSE) Logger.log("response:\n" + makeJSON_(data, getExportOptions()))
 
-  return data["intents"];
+    return data["intents"];
+  }
+  else {
+    Logger.log("bad request");
+    return "bad request";
+  }
 }
 
 /**

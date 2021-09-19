@@ -1,11 +1,25 @@
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
 <script>
-// initialisation function to run fill table function
+// initialisation function to run build table function
 function onDbGetResponseRecieved(inputJson) {
-    buildIntentsTable(inputJson, "#istat");
+  if(inputJson.length == 0) {
+    return;
+  }
+
+  inputJson.forEach(deviceObject => {
+    let deviceId = "#" + deviceObject["name"];
+    let deviceIntents = deviceObject["intents"];
+
+    buildIntentsTable(deviceIntents, deviceId);
+  });
+
+  // set first device as selected tab and display it
+  let firstDeviceId = "#" + inputJson[0]["name"] + "-tab-button";
+  $(firstDeviceId).addClass("clicked-tab");
+  $("#" + inputJson[0]["name"]).show();
 }
 // call connection driver get function
-google.script.run.withSuccessHandler(onDbGetResponseRecieved).databaseGet();
+google.script.run.withSuccessHandler(onDbGetResponseRecieved).getAllDatabaseDevices();
 
 /**
  * openTab
@@ -60,6 +74,8 @@ function buildIntentsTable(inputJson, selector) {
         // add row
         $target.append(row$);
     }
+    // hide table
+    $target.hide();
     // add event listeners for table
     addEventListeners(selector);
     // add button for adding new rows
@@ -71,12 +87,12 @@ function buildIntentsTable(inputJson, selector) {
         + selector + '\')" />');
     $target.append(newButton);
     // add navbar button
-    newTab = $('<input type="button" class="navbar-button tablink clicked-tab"' 
+    newTab = $('<input type="button" id="' + selector.substring(1) + '-tab-button" class="navbar-button tablink"' 
       + 'value="' + selector.substring(1) + '"'
       + 'onclick="openTab(event, \'' + selector + '\')" />');
     $("#navbar").append(newTab);
     // remove loading icon
-    if ($("#loader").length  > 0){
+    if ($("#loader").length > 0){
         $("#loader").remove();
     }
 }
@@ -117,6 +133,7 @@ function addEventListeners(selector) {
  * If any are invalid sets cell as red and displays warning
  *
  * @param {string} selector - The html id of table to check
+ * @returns {boolean} - True if all valid cells, false if not
  */
 function checkTable(selector) {
     // get HTML DOM object
@@ -190,10 +207,12 @@ function checkTable(selector) {
         }
         let errorDiv = document.getElementById('warning');
         errorDiv.innerHTML = errorString;
+        return false;
     }
     else {
         let errorDiv = document.getElementById('warning');
         errorDiv.innerHTML = "";
+        return true;
     }
 }
 
@@ -257,8 +276,8 @@ function addRow(selector) {
  * @param {string} selector - The html id of table to export
  */
 function exportTable(selector) {
-    let errorDiv = document.getElementById('warning');
-    if (errorDiv.innerHTML != "") {
+    // ensure only valid cells in table
+    if (!checkTable(selector)) {
         alert("Unable to export with invalid entries.");
         return;
     }
@@ -293,6 +312,7 @@ function exportTable(selector) {
 }
 
 function onDbPutResponseRecieved(putResponse) {
+  // TODO display if database put was a success
   //let div = document.getElementById('output');
   //div.innerHTML = putResponse;
 }

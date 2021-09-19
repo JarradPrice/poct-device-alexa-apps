@@ -133,7 +133,7 @@ namespace JarradPrice.Function.Endpoint
                         response = await GetEndSessionResponse(intentRequest, log);
                         break;
                     case "AMAZON.FallbackIntent":
-
+                        response = await GetFallbackResponse(intentRequest, log);
                         break;
                     default:
                     {
