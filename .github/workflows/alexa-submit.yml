@@ -1,4 +1,6 @@
 # Runs tests then submits Alexa Skill to certification
+name: Alexa Skill Submit - test, deploy, and submit Skill
+
 on:
   push:
     branches:
