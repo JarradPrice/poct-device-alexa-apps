@@ -11,27 +11,10 @@ on:
   workflow_dispatch:
 
 jobs:
-# Must do a token replace of the skill id and enpoint uri
-  substitute:
-    runs-on: ubuntu-latest
-    name: Substitute
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Find and replace skill.json
-        run: find skill.json -type f -exec sed -i ''s+#{EndpointUri}#+${{ secrets.ALEXA_ENDPOINT_URI }}+g'' {} \;
-        working-directory: ./alexa-skill/skill-package
-      - name: Find and replace ask-states.json
-        run: find ask-states.json -type f -exec sed -i ''s/#{SkillId}#/${{ secrets.ALEXA_SKILL_ID }}/g'' {} \;
-        working-directory: ./alexa-skill/.ask
-      - name: Find and replace ask-resources.json
-        run: find ask-resources.json -type f -exec sed -i ''s/#{SkillId}#/${{ secrets.ALEXA_SKILL_ID }}/g'' {} \;
-        working-directory: ./alexa-skill
   # Bring execution permission to be able to execute all the tests
   checkout:
     runs-on: ubuntu-latest
     name: Checkout
-    needs: substitute
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -46,6 +29,17 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
+    # must do a token replace of the skill id and enpoint uri
+    - name: Find and replace skill.json
+      run: find skill.json -type f -exec sed -i ''s+#{EndpointUri}#+${{ secrets.ALEXA_ENDPOINT_URI }}+g'' {} \;
+      working-directory: ./alexa-skill/skill-package
+    - name: Find and replace ask-states.json
+      run: find ask-states.json -type f -exec sed -i ''s/#{SkillId}#/${{ secrets.ALEXA_SKILL_ID }}/g'' {} \;
+      working-directory: ./alexa-skill/.ask
+    - name: Find and replace ask-resources.json
+      run: find ask-resources.json -type f -exec sed -i ''s/#{SkillId}#/${{ secrets.ALEXA_SKILL_ID }}/g'' {} \;
+      working-directory: ./alexa-skill
+    # install CLI and deploy
     - run: sudo npm install -g ask-cli
     - run: ask deploy
       working-directory: ./alexa-skill
@@ -104,6 +98,17 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
+    # must do a token replace of the skill id and enpoint uri
+    - name: Find and replace skill.json
+      run: find skill.json -type f -exec sed -i ''s+#{EndpointUri}#+${{ secrets.ALEXA_ENDPOINT_URI }}+g'' {} \;
+      working-directory: ./alexa-skill/skill-package
+    - name: Find and replace ask-states.json
+      run: find ask-states.json -type f -exec sed -i ''s/#{SkillId}#/${{ secrets.ALEXA_SKILL_ID }}/g'' {} \;
+      working-directory: ./alexa-skill/.ask
+    - name: Find and replace ask-resources.json
+      run: find ask-resources.json -type f -exec sed -i ''s/#{SkillId}#/${{ secrets.ALEXA_SKILL_ID }}/g'' {} \;
+      working-directory: ./alexa-skill
+    # install CLI and submit
 #    - run: sudo npm install -g ask-cli
     - run: echo "debug" #ask smapi submit-skill-for-certification -s ${{ secrets.ALEXA_SKILL_ID }} --publication-method MANUAL_PUBLISHING
       working-directory: ./alexa-skill  
