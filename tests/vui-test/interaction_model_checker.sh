@@ -3,7 +3,7 @@ skill_id=$1
 
 echo "######### Checking Conflicts #########"
 
-folder="../../skill-package/interactionModels/custom/*"
+folder="../../alexa-skill/skill-package/interactionModels/custom/*"
 
 for d in ${folder}; do
 
