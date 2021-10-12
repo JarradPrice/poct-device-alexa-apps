@@ -13,6 +13,10 @@ function onOpen() {
   {
     name: "Export Answers",
     functionName : "openSidebar"
+  },
+  {
+    name: "Get Beta",
+    functionName: "openBetaPrompt"
   }];
   SPREADSHEET.addMenu("EXPORT TOOLS", exportButtons);
 };
