@@ -145,7 +145,8 @@ getGlobals();
           "accept" : "application/vnd.github.v3+json",
           "Authorization": "token " + GITHUB_CONFIG.token
       },
-      "payload" : JSON.stringify(payloadJson)
+      "payload" : JSON.stringify(payloadJson),
+      muteHttpExceptions: true
   };
 
   if (VERBOSE) Logger.log("url output:\n" + JSON.stringify(options));
@@ -159,6 +160,12 @@ getGlobals();
       "okRequest" : "Successfully created merge request."
       }
       return okRequestObject;
+  }
+  else if (response.getResponseCode() == 422) {
+    let okRequestObject = {
+      "badRequest" : "ERROR\nAsk repositroy maintainer to do a '--allow-unrelated-histories' merge. \n See https://github.community/t/problem-with-github-template-repository-when-i-include-all-branches/121911/13 for more info."
+    }
+    return okRequestObject;
   }
   else {
       if (VERBOSE) Logger.log("bad request:\n" + response.getContentText());
