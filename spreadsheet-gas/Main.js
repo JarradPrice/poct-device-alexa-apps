@@ -13,6 +13,14 @@ function onOpen() {
   {
     name: "Export Answers",
     functionName : "openSidebar"
+  },
+  {
+    name: "Get Beta",
+    functionName: "openBetaPrompt"
+  },
+  {
+    name: "Create Merge Request",
+    functionName: "doMergeRequest"
   }];
   SPREADSHEET.addMenu("EXPORT TOOLS", exportButtons);
 };

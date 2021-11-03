@@ -1,11 +1,29 @@
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
 <script>
-// initialisation function to run fill table function
+// failure handler to display error to user
+function onFailure(error) {
+  google.script.run.showAlert(error.message);
+}
+// initialisation function to run build table function
 function onDbGetResponseRecieved(inputJson) {
-    buildIntentsTable(inputJson, "#istat");
+  if(inputJson.length == 0) {
+    return;
+  }
+
+  inputJson.forEach(deviceObject => {
+    let deviceId = "#" + deviceObject["name"];
+    let deviceIntents = deviceObject["intents"];
+
+    buildIntentsTable(deviceIntents, deviceId);
+  });
+
+  // set first device as selected tab and display it
+  let firstDeviceId = "#" + inputJson[0]["name"] + "-tab-button";
+  $(firstDeviceId).addClass("clicked-tab");
+  $("#" + inputJson[0]["name"]).show();
 }
 // call connection driver get function
-google.script.run.withSuccessHandler(onDbGetResponseRecieved).databaseGet();
+google.script.run.withSuccessHandler(onDbGetResponseRecieved).withFailureHandler(onFailure).getAllDatabaseDevices();
 
 /**
  * openTab
@@ -25,6 +43,8 @@ function openTab(event, selector) {
   }
   $(selector).show();
   event.currentTarget.className += " clicked-tab";
+  // validate table, to diplsay warnings when a new device is added
+  checkTable(selector);
 }
 
 /**
@@ -52,14 +72,16 @@ function buildIntentsTable(inputJson, selector) {
         // get intent
         var cellValue = inputJson[i]["intent"];
         // add cell with value
-        row$.append($('<td contenteditable="true"/>').html(cellValue));
+        row$.append($('<td contenteditable="true" class="left-td"/>').html(cellValue));
         // get response
         var cellValue = inputJson[i]["response"];
         // add cell with value
-        row$.append($('<td contenteditable="true"/>').html(cellValue));
+        row$.append($('<td contenteditable="true" class="right-td"/>').html(cellValue));
         // add row
         $target.append(row$);
     }
+    // hide table
+    $target.hide();
     // add event listeners for table
     addEventListeners(selector);
     // add button for adding new rows
@@ -71,12 +93,12 @@ function buildIntentsTable(inputJson, selector) {
         + selector + '\')" />');
     $target.append(newButton);
     // add navbar button
-    newTab = $('<input type="button" class="navbar-button tablink clicked-tab"' 
+    newTab = $('<input type="button" id="' + selector.substring(1) + '-tab-button" class="navbar-button tablink"' 
       + 'value="' + selector.substring(1) + '"'
       + 'onclick="openTab(event, \'' + selector + '\')" />');
     $("#navbar").append(newTab);
     // remove loading icon
-    if ($("#loader").length  > 0){
+    if ($("#loader").length > 0){
         $("#loader").remove();
     }
 }
@@ -117,52 +139,114 @@ function addEventListeners(selector) {
  * If any are invalid sets cell as red and displays warning
  *
  * @param {string} selector - The html id of table to check
+ * @returns {boolean} - True if all valid cells, false if not
  */
 function checkTable(selector) {
     // get HTML DOM object
     let $table = $(selector)[0];
     // get every table row
     let tr = $table.getElementsByTagName('tr')
-    // are all cells valid
-    let allValid = true;
-    // for each row
-    for (let i = 0; i < tr.length; i++) {
+    // is there an invalid intent or response cells
+    let invalidIntent = false;
+    let invalidResponse = false;
+    // for each row, skip header row
+    for (let i = 1; i < tr.length; i++) {
         // get cells in the row
         let cells = tr[i].getElementsByTagName('td');
+        // first check if row is to be deleted
+        // if all cells empty delete row
+        let deleteCell = true;
+        // match white space
+        let whiteSpaceRegex = /^\s*$/;
+        for (let cell = 0, len = cells.length; cell < len; cell++) {
+            if(!whiteSpaceRegex.test(cells[cell].innerHTML)) {
+                deleteCell = false;
+            } 
+        }
+        if (deleteCell) {
+            $table.deleteRow(i);
+            // re run checkTable with table loop 
+            checkTable(selector);
+            return;
+        }
         // for each cell
         for (let cell = 0, len = cells.length; cell < len; cell++) {
-            // if invalid input
-            if (!isValid(cells[cell].innerHTML)) {
-                // make cell red
-                cells[cell].style.backgroundColor = 'lightcoral';
-                // all cells are not valid
-                allValid = false;
+            // validate intent cell
+            if (cell == 0) {
+                // if invalid input
+                if (!isIntentValid(cells[cell].innerHTML)) {
+                    // make cell red
+                    cells[cell].style.backgroundColor = 'lightcoral';
+                    // invalid intent cell
+                    invalidIntent = true;
+                }
+                else {
+                    // make cell white
+                    cells[cell].style.backgroundColor = 'white';
+                }
             }
-            else {
-                // make cell white
-                cells[cell].style.backgroundColor = 'white';
+            
+            // validate response cell
+            if (cell == 1) {
+                // if invalid input
+                if (!isResponseValid(cells[cell].innerHTML)) {
+                    // make cell red
+                    cells[cell].style.backgroundColor = 'lightcoral';
+                    // invalid response cell
+                    invalidResponse = true;
+                }
+                else {
+                    // make cell white
+                    cells[cell].style.backgroundColor = 'white';
+                }
             }
         }
     }
     // if any cell is not valid display warning
-    if(!allValid) {
+    if(invalidIntent || invalidResponse) {
+        let errorString = "";
+        if (invalidIntent) {
+            errorString += "Invalid intent cell/s, only uppercase characters separated by underscores allowed.<br>"
+        }
+        if (invalidResponse) {
+            errorString += "\nInvalid response cell/s, no special characters or blank cells allowed."
+        }
         let errorDiv = document.getElementById('warning');
-        errorDiv.innerHTML = "Invalid input, no special characters or blank cells allowed.";
+        errorDiv.innerHTML = errorString;
+        return false;
     }
     else {
         let errorDiv = document.getElementById('warning');
         errorDiv.innerHTML = "";
+        return true;
     }
 }
 
 /**
- * isValid
+ * isIntentValid
  * Checks input against regex
  *
  * @param {string} cellInput - The innerHTML of a cell
  * @returns {boolean} - True if valid, false if not
  */
-function isValid(cellInput) {
+function isIntentValid(cellInput) {
+    // match only uppercase seperated by underscore
+    let intentRegex = /^([A-Z]+(_?[A-Z])*)$/;
+    if(intentRegex.test(cellInput)) {
+        return true;
+    } 
+    else {
+        return false;
+    }
+}
+/**
+ * isResponseValid
+ * Checks input against regex
+ *
+ * @param {string} cellInput - The innerHTML of a cell
+ * @returns {boolean} - True if valid, false if not
+ */
+function isResponseValid(cellInput) {
     // match special characters
     let specialCharRegex = /[!@#$%^&*()+\-=\[\]{};':"\\|<>\/?\n\t\r]+/;
     // match white space
@@ -183,8 +267,8 @@ function isValid(cellInput) {
  */
 function addRow(selector) {
     var row$ = $('<tr/>');
-    row$.append($('<td contenteditable="true"/>').html("!insert intent!"));
-    row$.append($('<td contenteditable="true"/>').html("!insert response!"));
+    row$.append($('<td contenteditable="true" class="left-td"/>').html("!insert intent!"));
+    row$.append($('<td contenteditable="true" class="right-td"/>').html("!insert response!"));
     $(selector).append(row$);
     // ensure that user has to change row values
     checkTable(selector);
@@ -198,8 +282,8 @@ function addRow(selector) {
  * @param {string} selector - The html id of table to export
  */
 function exportTable(selector) {
-    let errorDiv = document.getElementById('warning');
-    if (errorDiv.innerHTML != "") {
+    // ensure only valid cells in table
+    if (!checkTable(selector)) {
         alert("Unable to export with invalid entries.");
         return;
     }
@@ -234,7 +318,11 @@ function exportTable(selector) {
 }
 
 function onDbPutResponseRecieved(putResponse) {
-  //let div = document.getElementById('output');
-  //div.innerHTML = putResponse;
+  if (putResponse.hasOwnProperty("badRequest")) {
+    google.script.run.showAlert(putResponse["badRequest"]);
+  }
+  else {
+    google.script.run.showAlert(putResponse["okRequest"]);
+  }
 }
 </script>

@@ -8,10 +8,8 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Schema;
-using System.Collections.Generic;
-
 using Microsoft.Azure.Cosmos;
-using Microsoft.Azure.WebJobs.Extensions.CosmosDB;
+using System.Collections.Generic;
 
 using JarradPrice.Function.Models;
 using JarradPrice.Function.Services;
@@ -20,15 +18,6 @@ namespace JarradPrice.Function.DatabaseConnect
 {
     public static class DatabaseAccessHttpTrigger
     {
-        #region Variables
-        // Azure Cosmos DB endpoint
-        private static readonly string EndpointUri = "https://manual-knowledgebase.documents.azure.com:443/";
-        // primary key for the Azure Cosmos account
-        private static readonly string PrimaryKey = "Bu3EXdxzZKhwmhF9C5IYRBjJNZkMSS6VHtMUt10RQzPWV6QlAZm8Cpp1oK0eb04MyGWvnN3ayLPyf1qQNAb7Vw==";
-        private static readonly string databaseId = "my-database";
-        private static readonly string containerId = "my-container";
-        #endregion
-
         #region Trigger entry point
         [FunctionName("DatabaseAccessHttpTrigger")]
         public static async Task<IActionResult> Run(
@@ -62,9 +51,8 @@ namespace JarradPrice.Function.DatabaseConnect
             {
                 log.LogInformation("Invalid json");
                 log.LogInformation(messages.ToString());
-                return new BadRequestResult();
+                return new BadRequestObjectResult("Invalid JSON");
             }
-
 
             string result = String.Empty;
 
@@ -90,7 +78,7 @@ namespace JarradPrice.Function.DatabaseConnect
                         break;
                 }
             }
-            if (jsonObject["method"].ToString().Equals("PUT"))
+            else if (jsonObject["method"].ToString().Equals("PUT"))
             {
                 log.LogInformation("post request " + jsonObject["source"].ToString());
 
@@ -102,9 +90,20 @@ namespace JarradPrice.Function.DatabaseConnect
                 result = await PutRequest(payload, id, log);
             }
             
-            if (result.Equals("ER"))
+            if (result.Substring(0, 2).Equals("ER"))
             {
-                return new BadRequestResult();
+                string errorMessage = String.Empty;
+                try
+                {
+                    errorMessage = result.Substring(3);
+                }
+                catch (Exception)
+                {
+                    log.LogInformation("incorrect error message format");
+                    errorMessage = "uncaught error";
+                }
+                log.LogInformation("bad request response: " + errorMessage);
+                return new BadRequestObjectResult(errorMessage);
             }
             else
             {
@@ -116,10 +115,10 @@ namespace JarradPrice.Function.DatabaseConnect
         #region Cosmos initialisation
         private static async Task<CosmosDbService> InitialiseCosmosClientInstanceAsync()
         {
-            var databaseName = databaseId;
-            var containerName = containerId;
-            var account = EndpointUri;
-            var key = PrimaryKey;
+            var databaseName = GetEnvironmentVariable("COSMOS_DATABASE_ID");
+            var containerName = GetEnvironmentVariable("COSMOS_CONTAINER_ID");
+            var account = GetEnvironmentVariable("COSMOS_URI");
+            var key = GetEnvironmentVariable("COSMOS_PRIMARY_KEY");
 
             var client = new CosmosClient(account, key);
             var database = await client.CreateDatabaseIfNotExistsAsync(databaseName);
@@ -127,6 +126,11 @@ namespace JarradPrice.Function.DatabaseConnect
 
             var cosmosDbService = new CosmosDbService(client, databaseName, containerName);
             return cosmosDbService;
+        }
+
+        public static string GetEnvironmentVariable(string name)
+        {
+            return System.Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process);
         }
         #endregion
 
@@ -145,7 +149,7 @@ namespace JarradPrice.Function.DatabaseConnect
                 if (healthDevices.Count == 0)
                 {
                     log.LogInformation("error no health devices were returned");
-                    return "ER";
+                    return "ER" + " No device found";
                 }
                 else
                 {
@@ -157,10 +161,10 @@ namespace JarradPrice.Function.DatabaseConnect
             else if (result.Status == Status.ER)
             {
                 log.LogInformation("error, response: " + result.Response);
-                return "ER";
+                return "ER " + result.Response;
             }
             // should never reach this return statement
-            return "ER";
+            return "ER" + " unreachable code";
         }
 
         private static async Task<string> GetDevicesRequest(string requestQuery, ILogger log)
@@ -177,7 +181,7 @@ namespace JarradPrice.Function.DatabaseConnect
                 if (healthDevices.Count == 0)
                 {
                     log.LogInformation("error no health devices were returned");
-                    return "ER";
+                    return "ER" + " No devices found";
                 }
                 else
                 {
@@ -188,10 +192,10 @@ namespace JarradPrice.Function.DatabaseConnect
             else if (result.Status == Status.ER)
             {
                 log.LogInformation("error, response: " + result.Response);
-                return "ER";
+                return "ER " + result.Response;
             }
             // should never reach this return statement
-            return "ER";
+            return "ER" + " unreachable code";
         }
 
         private static async Task<string> GetIntentRequest(string requestQuery, ILogger log)
@@ -209,7 +213,7 @@ namespace JarradPrice.Function.DatabaseConnect
                 if (deviceIntents.Count == 0)
                 {
                     log.LogInformation("error no intents were returned");
-                    return "ER";
+                    return "ER" + " No intent found";
                 }
                 else
                 {
@@ -222,10 +226,10 @@ namespace JarradPrice.Function.DatabaseConnect
             else if (result.Status == Status.ER)
             {
                 log.LogInformation("error, response: " + result.Response);
-                return "ER";
+                return "ER " + result.Response;
             }
             // should never reach this return statement
-            return "ER";
+            return "ER" + " unreachable code";
         }
         #endregion
 
@@ -235,26 +239,34 @@ namespace JarradPrice.Function.DatabaseConnect
              // initialise cosmos instance
             CosmosDbService _cosmosDbService = await InitialiseCosmosClientInstanceAsync();
 
-            HealthDevice healthDevice = JsonConvert.DeserializeObject<HealthDevice>(payload);
-            healthDevice.Id = id;
-            log.LogInformation("object to insert");
-            log.LogInformation(healthDevice.ToString());
-
-            // call CosmosDbService class
-            DbServiceResponse result = await _cosmosDbService.UpdateAsync(id, healthDevice); 
-
-            if (result.Status == Status.OK)
+            try
             {
-                log.LogInformation("success, response: " + result.Response);
-                return result.Response;
+                HealthDevice healthDevice = JsonConvert.DeserializeObject<HealthDevice>(payload);
+                healthDevice.Id = id;
+                log.LogInformation("object to insert");
+                log.LogInformation(healthDevice.ToString());
+
+                // call CosmosDbService class
+                DbServiceResponse result = await _cosmosDbService.UpdateAsync(id, healthDevice); 
+
+                if (result.Status == Status.OK)
+                {
+                    log.LogInformation("success, response: " + result.Response);
+                    return result.Response;
+                }
+                else if (result.Status == Status.ER)
+                {
+                    log.LogInformation("error, response: " + result.Response);
+                    return "ER " + result.Response;
+                }
+                // should never reach this return statement
+                return "ER" + " unreachable code";
             }
-            else if (result.Status == Status.ER)
+            catch (Exception)
             {
-                log.LogInformation("error, response: " + result.Response);
-                return "ER";
+                log.LogInformation("invalid device json");
+                return "ER" + " Invalid device JSON";
             }
-            // should never reach this return statement
-            return "ER";
         }
         #endregion
     }

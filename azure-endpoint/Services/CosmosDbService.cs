@@ -18,6 +18,30 @@ namespace JarradPrice.Function.Services
             _container = cosmosDbClient.GetContainer(databaseName, containerName);
         }
 
+        public string GetExceptionResponse(Exception exception)
+        {
+            string errorMessage = String.Empty;
+
+            if (exception is CosmosException)
+            {
+                CosmosException cosmosException = (CosmosException)exception;
+                if (cosmosException.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    errorMessage = "Resource not found";
+                }
+                else
+                {
+                    errorMessage = cosmosException.Message;
+                }
+            }
+            else
+            {
+                errorMessage = exception.ToString();
+            } 
+
+            return errorMessage;
+        }
+
         #region Database getters
         // gets document (health device) with matching id
         public async Task<DbServiceResponse> GetHealthDeviceAsync(string id)
@@ -32,7 +56,7 @@ namespace JarradPrice.Function.Services
             catch (Exception exc)
             {
                 status = Status.ER;
-                response = exc.ToString();
+                response = GetExceptionResponse(exc);
             }
 
             return new DbServiceResponse(status, response, returnedDevice);
@@ -43,6 +67,12 @@ namespace JarradPrice.Function.Services
             Status status = Status.OK;
             string response = String.Empty;
             List<HealthDevice> returnedDevices = new List<HealthDevice>();
+            // if no query passed, get all devices
+            if (string.IsNullOrEmpty(queryString))
+            {
+                queryString = "SELECT * from c";
+            }  
+
             try
             {
                 var query = _container.GetItemQueryIterator<HealthDevice>(new QueryDefinition(queryString));
@@ -56,7 +86,7 @@ namespace JarradPrice.Function.Services
             catch (Exception exc)
             {
                 status = Status.ER;
-                response = exc.ToString();
+                response = GetExceptionResponse(exc);
             }
 
             return new DbServiceResponse(status, response, returnedDevices);
@@ -79,7 +109,7 @@ namespace JarradPrice.Function.Services
             catch (Exception exc)
             {
                 status = Status.ER;
-                response = exc.ToString();
+                response = GetExceptionResponse(exc);
             }
 
             return new DbServiceResponse(status, response, returnedIntents);
@@ -109,7 +139,7 @@ namespace JarradPrice.Function.Services
             catch (Exception exc)
             {
                 status = Status.ER;
-                response = exc.ToString();
+                response = GetExceptionResponse(exc);
             }
 
             return new DbServiceResponse(status, response);

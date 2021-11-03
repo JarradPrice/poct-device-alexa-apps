@@ -1,8 +1,6 @@
-# This is a basic workflow to help you get started with Actions
-
+# Performs static code quality analysis using elint and pushes code using Clasp
 name: Push Google Apps Script code to script ID - spreadsheet-gas
 
-# Controls when the workflow will run
 on:
   # Triggers the workflow on push request events but only for the main branch
   # also only triggers when the push event includes a file in the spreadsheet-gas directory
@@ -11,22 +9,33 @@ on:
     paths:
       - 'spreadsheet-gas/**'
 
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  # Static quality analysis test
+  pretest:
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    name: Pre-test
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - name: Checkout
+      uses: actions/checkout@v2
+    - run: |
+        cd tests/quality-test/;
+        npm install;
+        npm run lint || true;
+        npm run lint-html || true
+    - name: Upload results
+      uses: actions/upload-artifact@v2
+      with:
+        name: eslint-report
+        path: tests/quality-test/reports/eslint/
+  # Clasp action to push code
+  push:
+    runs-on: ubuntu-latest
+    name: Clasp Push
+    needs: pretest
+    steps:
       - uses: actions/checkout@v2
-      
-      # clasp action that does the push
       - name: Clasp Action
         uses: jarradprice/clasp-action@v1.0.1
         with:
