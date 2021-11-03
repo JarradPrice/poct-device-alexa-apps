@@ -17,6 +17,10 @@ function onOpen() {
   {
     name: "Get Beta",
     functionName: "openBetaPrompt"
+  },
+  {
+    name: "Create Merge Request",
+    functionName: "doMergeRequest"
   }];
   SPREADSHEET.addMenu("EXPORT TOOLS", exportButtons);
 };

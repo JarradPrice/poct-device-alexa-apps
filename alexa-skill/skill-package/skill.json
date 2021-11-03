@@ -8,9 +8,12 @@
             "Alexa open point of care device assistant",
             "point of care device assistant"
           ],
-          "keywords": [],
+          "keywords": [
+            "Point of care device",
+            "Health diagnostic device"
+          ],
           "name": "PocT Device Information Assistant",
-          "description": "Sample Full Description",
+          "description": "This skill contains intents that map to FAQ's for point of care service devices. This information is drawn from pre-existing device manuals.",
           "smallIconUri": "file://assets/images/en-AU_ICON_108.png",
           "largeIconUri": "file://assets/images/en-AU_ICON_512.png"
         }
@@ -19,7 +22,7 @@
         "isActive": false
       },
       "isAvailableWorldwide": true,
-      "testingInstructions": "This skill contains intents that map to FAQ's for point of care service devices. This information is drawn from pre-existing device manuals.",
+      "testingInstructions": "Compare responses with official device documents.",
       "category": "ORGANIZERS_AND_ASSISTANTS",
       "distributionMode": "PUBLIC",
       "distributionCountries": []

@@ -43,6 +43,8 @@ function openTab(event, selector) {
   }
   $(selector).show();
   event.currentTarget.className += " clicked-tab";
+  // validate table, to diplsay warnings when a new device is added
+  checkTable(selector);
 }
 
 /**
@@ -265,8 +267,8 @@ function isResponseValid(cellInput) {
  */
 function addRow(selector) {
     var row$ = $('<tr/>');
-    row$.append($('<td contenteditable="true"/>').html("!insert intent!"));
-    row$.append($('<td contenteditable="true"/>').html("!insert response!"));
+    row$.append($('<td contenteditable="true" class="left-td"/>').html("!insert intent!"));
+    row$.append($('<td contenteditable="true" class="right-td"/>').html("!insert response!"));
     $(selector).append(row$);
     // ensure that user has to change row values
     checkTable(selector);

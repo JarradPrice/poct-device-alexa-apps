@@ -1,2 +1,0 @@
-# Images
-Used in Wiki.

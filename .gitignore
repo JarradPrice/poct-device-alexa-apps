@@ -1,2 +1,3 @@
 tests/quality-test/node_modules/
 tests/quality-test/reports
+tests/quality-test/package-lock.json
