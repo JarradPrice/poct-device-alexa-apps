@@ -26,6 +26,7 @@ jobs:
         working-directory: ./alexa-skill/.ask
       - name: Find and replace ask-resources.json
         run: find ask-resources.json -type f -exec sed -i ''s/#{SkillId}#/${{ secrets.ALEXA_SKILL_ID }}/g'' {} \;
+        working-directory: ./alexa-skill
       # Install CLI and deploy
       - name: Deploy skill
         run: |
