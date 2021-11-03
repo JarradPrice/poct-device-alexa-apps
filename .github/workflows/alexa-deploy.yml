@@ -11,10 +11,6 @@ on:
       - 'alexa-skill/**'
 
   workflow_dispatch:
-  
-defaults:
-  run:
-    working-directory: alexa-skill
 
 jobs:
   build:
