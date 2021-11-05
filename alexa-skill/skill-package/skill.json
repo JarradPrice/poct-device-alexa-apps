@@ -5,8 +5,8 @@
         "en-AU": {
           "summary": "Answers FAQ on point of care devices.",
           "examplePhrases": [
-            "Alexa open point of care device assistant",
-            "point of care device assistant"
+            "Alexa open point of care device manual",
+            "point of care device manual"
           ],
           "keywords": [
             "Point of care device",
