@@ -12,8 +12,8 @@
           "keywords": [],
           "name": "Health App Prototype",
           "description": "Sample Full Description",
-          "smallIconUri": "file://assets/images/en-AU_smallIconUri.png",
-          "largeIconUri": "file://assets/images/en-AU_largeIconUri.png"
+          "smallIconUri": "file://assets/images/en-AU_ICON_108.png",
+          "largeIconUri": "file://assets/images/en-AU_ICON_512.png"
         }
       },
       "automaticDistribution": {
